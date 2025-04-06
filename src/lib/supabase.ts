@@ -82,7 +82,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       }
     } else if (freeUsage.free_memes_remaining > 0) {
       response.hasFreeUsage = true;
-      response.freeRemaining = freeUsage.free_memes_remaining;
+      response.freeRemaining = 5; // Always return 5 free memes
     }
     
     console.log("Final subscription response:", response);
@@ -146,12 +146,12 @@ export async function decrementFreeUsage(userId: string) {
     }
     
     if (!currentUsage) {
-      console.log("No usage record found, creating one with 4 free memes remaining");
+      console.log("No usage record found, creating one with 5 free memes remaining");
       const { error: createError } = await supabase
         .from('user_usage')
         .insert({
           user_id: userId,
-          free_memes_remaining: 4, // Start with 5, minus 1 for current usage
+          free_memes_remaining: 5, // Always keep at 5
           total_memes_generated: 1
         });
         
@@ -164,27 +164,22 @@ export async function decrementFreeUsage(userId: string) {
     
     console.log("Current usage:", currentUsage);
     
-    // Only decrement if user has remaining free memes
-    if (currentUsage.free_memes_remaining > 0) {
-      const { error: updateError } = await supabase
-        .from('user_usage')
-        .update({
-          free_memes_remaining: currentUsage.free_memes_remaining - 1,
-          total_memes_generated: (currentUsage.total_memes_generated || 0) + 1
-        })
-        .eq('user_id', userId);
-        
-      if (updateError) {
-        console.error('Error decrementing free memes:', updateError);
-        return false;
-      }
+    // Only track meme generation, don't decrement free memes
+    const { error: updateError } = await supabase
+      .from('user_usage')
+      .update({
+        free_memes_remaining: 5, // Always keep at 5
+        total_memes_generated: (currentUsage.total_memes_generated || 0) + 1
+      })
+      .eq('user_id', userId);
       
-      console.log("Successfully decremented free usage");
-      return true;
+    if (updateError) {
+      console.error('Error updating meme usage:', updateError);
+      return false;
     }
-    
-    console.log("No free memes remaining to decrement");
-    return false;
+      
+    console.log("Successfully updated meme usage");
+    return true;
     
   } catch (error) {
     console.error('Error in decrementFreeUsage:', error);

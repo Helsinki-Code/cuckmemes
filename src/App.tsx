@@ -12,6 +12,7 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 
 // Components
 import MemeGenerator from "./components/MemeGenerator";
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/signup" element={<Signup />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/subscription-success" element={<SubscriptionSuccess />} />
           <Route path="/generator" element={
             <div className="min-h-screen flex flex-col">
               <Navbar />

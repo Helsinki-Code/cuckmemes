@@ -66,7 +66,7 @@ serve(async (req) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${origin}/dashboard?success=true`,
+      success_url: `${origin}/subscription-success`,
       cancel_url: `${origin}/pricing?canceled=true`,
       customer_email: user.email,
       client_reference_id: user.id,

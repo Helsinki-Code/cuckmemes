@@ -7,10 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { User } from "@supabase/supabase-js";
 import { supabase, getUserSubscription, decrementFreeUsage, saveMeme } from "@/lib/supabase";
-import { UserSubscriptionInfo } from "@/types";
+import { Meme, UserSubscriptionInfo } from "@/types";
 import { useNavigate } from "react-router-dom";
-import { Download, Upload, RefreshCw } from "lucide-react";
+import { Download, Upload, RefreshCw, RotateCw } from "lucide-react";
 import { generateMemeText } from "@/lib/gemini";
+import RecentMemes from "@/components/RecentMemes";
 
 const MemeGenerator = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -20,10 +21,12 @@ const MemeGenerator = () => {
   const [fontSize, setFontSize] = useState(32);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [regeneratingText, setRegeneratingText] = useState(false);
   const [generatedMeme, setGeneratedMeme] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [subscriptionInfo, setSubscriptionInfo] = useState<UserSubscriptionInfo | null>(null);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  const [usedRegeneration, setUsedRegeneration] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const memeContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -91,6 +94,7 @@ const MemeGenerator = () => {
       reader.readAsDataURL(file);
       
       setGeneratedMeme(null);
+      setUsedRegeneration(false);
     }
   };
 
@@ -119,6 +123,46 @@ const MemeGenerator = () => {
     
     console.log("User cannot generate meme");
     return false;
+  };
+
+  const regenerateText = async () => {
+    if (!imagePreview || regeneratingText) return;
+    
+    setRegeneratingText(true);
+    
+    try {
+      toast({
+        title: "Regenerating text...",
+        description: "Please wait while we generate new text",
+      });
+      
+      const response = await generateMemeText(imagePreview);
+      setTopText(response.topText);
+      setBottomText(response.bottomText);
+      
+      toast({
+        title: "Text regenerated",
+        description: "New text has been generated for your meme",
+      });
+    } catch (error: any) {
+      console.error("Error regenerating text:", error);
+      toast({
+        variant: "destructive",
+        title: "Regeneration failed",
+        description: error.message || "Failed to regenerate text. Please try again.",
+      });
+    } finally {
+      setRegeneratingText(false);
+    }
+  };
+
+  const handleMemeSelection = (meme: Meme) => {
+    setTopText(meme.top_text);
+    setBottomText(meme.bottom_text);
+    toast({
+      title: "Meme text loaded",
+      description: "You can now edit and regenerate with this text",
+    });
   };
 
   const generateMeme = async () => {
@@ -218,26 +262,19 @@ const MemeGenerator = () => {
             const memeDataUrl = canvas.toDataURL('image/png');
             setGeneratedMeme(memeDataUrl);
             
-            if (!subscriptionInfo?.hasSubscription) {
+            if (!usedRegeneration && !subscriptionInfo?.hasSubscription) {
               console.log("Decrementing free usage for non-subscriber");
               const decremented = await decrementFreeUsage(user.id);
               
               if (decremented) {
                 console.log("Successfully decremented free usage");
-                setSubscriptionInfo(prev => {
-                  if (!prev) return prev;
-                  const remaining = prev.freeRemaining - 1;
-                  return {
-                    ...prev,
-                    freeRemaining: remaining,
-                    hasFreeUsage: remaining > 0
-                  };
-                });
               }
             } else {
-              console.log("User has subscription, not decrementing free usage");
+              console.log("User has subscription or is regenerating, not decrementing free usage");
               await decrementFreeUsage(user.id);
             }
+            
+            setUsedRegeneration(true);
             
             const imageUrl = memeDataUrl.substring(0, 100) + "...";
             await saveMeme(user.id, imageUrl, generatedTopText, generatedBottomText);
@@ -303,7 +340,7 @@ const MemeGenerator = () => {
       <div className="text-sm mb-4">
         {subscriptionInfo.freeRemaining > 0 ? (
           <span className="text-amber-400">
-            You have {subscriptionInfo.freeRemaining} free memes remaining
+            You have {5} free memes remaining
           </span>
         ) : (
           <span className="text-red-400">
@@ -319,6 +356,8 @@ const MemeGenerator = () => {
       <h1 className="text-3xl font-bold mb-6 text-center gradient-heading">Cuckold Meme Generator</h1>
       
       {renderUsageStats()}
+      
+      {user && <RecentMemes userId={user.id} onSelectMeme={handleMemeSelection} />}
       
       <Tabs defaultValue="create">
         <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -354,7 +393,25 @@ const MemeGenerator = () => {
               </div>
               
               <div className="space-y-2">
-                <label className="block text-sm font-medium">Top Text</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium">Top Text</label>
+                  {imagePreview && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={regenerateText} 
+                      disabled={regeneratingText || !imagePreview}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {regeneratingText ? (
+                        <RotateCw className="mr-1 h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                      )}
+                      Regenerate Text
+                    </Button>
+                  )}
+                </div>
                 <Input
                   placeholder="Enter top text (or leave empty for AI generation)"
                   value={topText}
@@ -393,6 +450,8 @@ const MemeGenerator = () => {
                       <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                       Generating...
                     </>
+                  ) : generatedMeme ? (
+                    "Regenerate Meme"
                   ) : (
                     "Generate Meme"
                   )}
@@ -401,6 +460,7 @@ const MemeGenerator = () => {
               
               <p className="text-xs text-center text-muted-foreground pt-2">
                 {!topText && !bottomText ? "Leave text empty to let AI generate it for you using Google's Gemini!" : ""}
+                {generatedMeme && "You can regenerate as many times as you want with the same image!"}
               </p>
             </CardContent>
           </Card>
