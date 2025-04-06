@@ -40,7 +40,11 @@ const SubscriptionSuccess = () => {
         }
         
         console.log("Subscription data:", data);
-        setSubscription(data);
+        
+        if (data) {
+          // Type assertion to make TypeScript happy
+          setSubscription(data as Subscription);
+        }
         
         // Show a success toast when the page loads
         toast({

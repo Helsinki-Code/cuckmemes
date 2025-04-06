@@ -19,7 +19,7 @@ export interface Subscription {
   user_id: string;
   stripe_customer_id: string;
   stripe_subscription_id: string;
-  plan_type: 'basic' | 'premium';
+  plan_type: string; // Changed from 'basic' | 'premium' to string
   status: 'active' | 'canceled' | 'past_due';
   current_period_end: string;
 }
