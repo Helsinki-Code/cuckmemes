@@ -1,6 +1,6 @@
 
 export interface Meme {
-  id: number;
+  id: string;
   user_id: string;
   image_url: string;
   top_text: string;
