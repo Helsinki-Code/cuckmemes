@@ -18,18 +18,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   };
   
   try {
-    // Check if user has remaining free memes
-    const { data: freeUsage, error: usageError } = await supabase
-      .from('user_usage')
-      .select('free_memes_remaining')
-      .eq('user_id', userId)
-      .maybeSingle();
-      
-    if (usageError) {
-      console.error('Error fetching user usage:', usageError);
-    }
-
-    // Check if user has an active subscription
+    // Check if user has an active subscription first
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*')
@@ -41,8 +30,32 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       console.error('Error fetching subscription:', subError);
     }
     
-    console.log("User usage data:", freeUsage);
     console.log("Subscription data:", subscription);
+    
+    // Set subscription info if active
+    if (subscription) {
+      response.hasSubscription = true;
+      response.subscription = subscription;
+      // When user has an active subscription, they don't need free usage
+      // but we'll still set hasFreeUsage to true so they can generate memes
+      response.hasFreeUsage = true;
+      response.freeRemaining = 999; // Unlimited for subscribers
+      console.log("User has active subscription, skipping free usage check");
+      return response;
+    }
+
+    // Only check for free usage if user doesn't have an active subscription
+    const { data: freeUsage, error: usageError } = await supabase
+      .from('user_usage')
+      .select('free_memes_remaining')
+      .eq('user_id', userId)
+      .maybeSingle();
+      
+    if (usageError) {
+      console.error('Error fetching user usage:', usageError);
+    }
+    
+    console.log("User usage data:", freeUsage);
 
     // If no usage record exists, create one with default free memes
     if (!freeUsage) {
@@ -65,12 +78,6 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       response.hasFreeUsage = true;
       response.freeRemaining = freeUsage.free_memes_remaining;
     }
-
-    // Set subscription info if active
-    if (subscription) {
-      response.hasSubscription = true;
-      response.subscription = subscription;
-    }
     
     console.log("Final subscription response:", response);
     return response;
@@ -91,9 +98,40 @@ export async function decrementFreeUsage(userId: string) {
   try {
     console.log("Decrementing free usage for user:", userId);
     
+    // First check if user has an active subscription
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+      
+    // If user has an active subscription, no need to decrement free usage
+    if (subscription) {
+      console.log("User has active subscription, not decrementing free usage");
+      
+      // Update total memes generated
+      const { error: updateError } = await supabase
+        .from('user_usage')
+        .upsert({
+          user_id: userId,
+          free_memes_remaining: 5, // Keep at max
+          total_memes_generated: supabase.rpc('increment_counter', { row_id: userId })
+        }, {
+          onConflict: 'user_id'
+        });
+        
+      if (updateError) {
+        console.error('Error updating meme count:', updateError);
+      }
+      
+      return true;
+    }
+    
+    // If no subscription, proceed with checking/updating free usage
     const { data: currentUsage, error: fetchError } = await supabase
       .from('user_usage')
-      .select('free_memes_remaining')
+      .select('free_memes_remaining, total_memes_generated')
       .eq('user_id', userId)
       .maybeSingle();
       
@@ -119,13 +157,15 @@ export async function decrementFreeUsage(userId: string) {
       return true;
     }
     
+    console.log("Current usage:", currentUsage);
+    
     // Only decrement if user has remaining free memes
     if (currentUsage.free_memes_remaining > 0) {
       const { error: updateError } = await supabase
         .from('user_usage')
         .update({
           free_memes_remaining: currentUsage.free_memes_remaining - 1,
-          total_memes_generated: supabase.rpc('increment_counter', { row_id: userId })
+          total_memes_generated: (currentUsage.total_memes_generated || 0) + 1
         })
         .eq('user_id', userId);
         

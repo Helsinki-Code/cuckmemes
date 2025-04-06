@@ -76,76 +76,88 @@ serve(async (req) => {
           console.log(`Processing subscription: User=${userId}, Plan=${plan}, Customer=${stripeCustomerId}, Subscription=${stripeSubscriptionId}`);
           
           if (userId && plan && stripeCustomerId && stripeSubscriptionId) {
-            // Get subscription details from Stripe
-            const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-            const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-            
-            console.log("Retrieved subscription details, period end:", currentPeriodEnd);
-            
-            // First check if a subscription record already exists for this user
-            const { data: existingSubscription } = await supabaseClient
-              .from('subscriptions')
-              .select('*')
-              .eq('user_id', userId)
-              .maybeSingle();
+            try {
+              // Get subscription details from Stripe
+              const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+              const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
               
-            if (existingSubscription) {
-              // Update existing subscription
-              console.log("Updating existing subscription record");
-              const { error: updateError } = await supabaseClient
-                .from('subscriptions')
-                .update({
-                  stripe_customer_id: stripeCustomerId,
-                  stripe_subscription_id: stripeSubscriptionId,
-                  plan_type: plan,
-                  status: 'active',
-                  current_period_end: currentPeriodEnd.toISOString()
-                })
-                .eq('user_id', userId);
-                
-              if (updateError) {
-                console.error('Error updating subscription record:', updateError);
-              }
-            } else {
-              // Create new subscription record
-              console.log("Creating new subscription record");
-              const { error: insertError } = await supabaseClient
-                .from('subscriptions')
-                .insert({
-                  user_id: userId,
-                  stripe_customer_id: stripeCustomerId,
-                  stripe_subscription_id: stripeSubscriptionId,
-                  plan_type: plan,
-                  status: 'active',
-                  current_period_end: currentPeriodEnd.toISOString()
-                });
-                
-              if (insertError) {
-                console.error('Error inserting subscription record:', insertError);
-              }
-            }
-            
-            // Also initialize user_usage if it doesn't exist
-            const { data: userUsage } = await supabaseClient
-              .from('user_usage')
-              .select('*')
-              .eq('user_id', userId)
-              .maybeSingle();
+              console.log("Retrieved subscription details, period end:", currentPeriodEnd);
               
-            if (!userUsage) {
-              console.log("Creating user_usage record with free memes");
-              const { error: usageError } = await supabaseClient
+              // First check if a subscription record already exists for this user
+              const { data: existingSubscription } = await supabaseClient
+                .from('subscriptions')
+                .select('*')
+                .eq('user_id', userId)
+                .maybeSingle();
+                
+              if (existingSubscription) {
+                // Update existing subscription
+                console.log("Updating existing subscription record");
+                const { error: updateError } = await supabaseClient
+                  .from('subscriptions')
+                  .update({
+                    stripe_customer_id: stripeCustomerId,
+                    stripe_subscription_id: stripeSubscriptionId,
+                    plan_type: plan,
+                    status: 'active',
+                    current_period_end: currentPeriodEnd.toISOString()
+                  })
+                  .eq('user_id', userId);
+                  
+                if (updateError) {
+                  console.error('Error updating subscription record:', updateError);
+                  throw updateError;
+                }
+              } else {
+                // Create new subscription record
+                console.log("Creating new subscription record");
+                const { error: insertError } = await supabaseClient
+                  .from('subscriptions')
+                  .insert({
+                    user_id: userId,
+                    stripe_customer_id: stripeCustomerId,
+                    stripe_subscription_id: stripeSubscriptionId,
+                    plan_type: plan,
+                    status: 'active',
+                    current_period_end: currentPeriodEnd.toISOString()
+                  });
+                  
+                if (insertError) {
+                  console.error('Error inserting subscription record:', insertError);
+                  throw insertError;
+                }
+              }
+              
+              // Also initialize or update user_usage if needed
+              const { data: userUsage } = await supabaseClient
                 .from('user_usage')
-                .insert({
-                  user_id: userId,
-                  free_memes_remaining: 5,
-                  total_memes_generated: 0
-                });
+                .select('*')
+                .eq('user_id', userId)
+                .maybeSingle();
                 
-              if (usageError) {
-                console.error('Error creating user_usage record:', usageError);
+              if (!userUsage) {
+                console.log("Creating user_usage record with free memes");
+                const { error: usageError } = await supabaseClient
+                  .from('user_usage')
+                  .insert({
+                    user_id: userId,
+                    free_memes_remaining: 5,
+                    total_memes_generated: 0
+                  });
+                  
+                if (usageError) {
+                  console.error('Error creating user_usage record:', usageError);
+                  throw usageError;
+                }
               }
+              
+              console.log("Successfully processed subscription for user:", userId);
+            } catch (error) {
+              console.error('Error processing subscription:', error);
+              throw error;
             }
+          } else {
+            console.error('Missing required subscription data', { userId, plan, stripeCustomerId, stripeSubscriptionId });
           }
         }
         break;
@@ -158,23 +170,31 @@ serve(async (req) => {
         console.log("Invoice payment succeeded for subscription:", subscriptionId);
         
         if (subscriptionId) {
-          // Get subscription details from Stripe
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-          
-          console.log("Retrieved subscription details, new period end:", currentPeriodEnd);
-          
-          // Update the subscription information in the database
-          const { error } = await supabaseClient
-            .from('subscriptions')
-            .update({
-              status: 'active',
-              current_period_end: currentPeriodEnd.toISOString()
-            })
-            .eq('stripe_subscription_id', subscriptionId);
+          try {
+            // Get subscription details from Stripe
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
             
-          if (error) {
-            console.error('Error updating subscription record:', error);
+            console.log("Retrieved subscription details, new period end:", currentPeriodEnd);
+            
+            // Update the subscription information in the database
+            const { error } = await supabaseClient
+              .from('subscriptions')
+              .update({
+                status: 'active',
+                current_period_end: currentPeriodEnd.toISOString()
+              })
+              .eq('stripe_subscription_id', subscriptionId);
+              
+            if (error) {
+              console.error('Error updating subscription record:', error);
+              throw error;
+            }
+            
+            console.log("Successfully updated subscription after payment");
+          } catch (error) {
+            console.error('Error processing invoice payment:', error);
+            throw error;
           }
         }
         break;
@@ -185,17 +205,25 @@ serve(async (req) => {
         
         console.log("Subscription updated:", subscription.id, "Status:", subscription.status);
         
-        // Update the subscription information in the database
-        const { error } = await supabaseClient
-          .from('subscriptions')
-          .update({
-            status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
-          })
-          .eq('stripe_subscription_id', subscription.id);
+        try {
+          // Update the subscription information in the database
+          const { error } = await supabaseClient
+            .from('subscriptions')
+            .update({
+              status: subscription.status,
+              current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+            })
+            .eq('stripe_subscription_id', subscription.id);
+            
+          if (error) {
+            console.error('Error updating subscription record:', error);
+            throw error;
+          }
           
-        if (error) {
-          console.error('Error updating subscription record:', error);
+          console.log("Successfully updated subscription status");
+        } catch (error) {
+          console.error('Error processing subscription update:', error);
+          throw error;
         }
         break;
       }
@@ -205,16 +233,24 @@ serve(async (req) => {
         
         console.log("Subscription deleted:", subscription.id);
         
-        // Update the subscription status to 'canceled' in the database
-        const { error } = await supabaseClient
-          .from('subscriptions')
-          .update({
-            status: 'canceled'
-          })
-          .eq('stripe_subscription_id', subscription.id);
+        try {
+          // Update the subscription status to 'canceled' in the database
+          const { error } = await supabaseClient
+            .from('subscriptions')
+            .update({
+              status: 'canceled'
+            })
+            .eq('stripe_subscription_id', subscription.id);
+            
+          if (error) {
+            console.error('Error updating subscription record:', error);
+            throw error;
+          }
           
-        if (error) {
-          console.error('Error updating subscription record:', error);
+          console.log("Successfully marked subscription as canceled");
+        } catch (error) {
+          console.error('Error processing subscription deletion:', error);
+          throw error;
         }
         break;
       }

@@ -44,6 +44,33 @@ export type Database = {
           },
         ]
       }
+      memes: {
+        Row: {
+          bottom_text: string
+          created_at: string
+          id: string
+          image_url: string
+          top_text: string
+          user_id: string
+        }
+        Insert: {
+          bottom_text: string
+          created_at?: string
+          id?: string
+          image_url: string
+          top_text: string
+          user_id: string
+        }
+        Update: {
+          bottom_text?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          top_text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       models: {
         Row: {
           base_model: string
@@ -98,6 +125,36 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          current_period_end: string
+          id: number
+          plan_type: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          user_id: string
+        }
+        Insert: {
+          current_period_end: string
+          id?: number
+          plan_type: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          user_id: string
+        }
+        Update: {
+          current_period_end?: string
+          id?: number
+          plan_type?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_credits: {
         Row: {
           credits_remaining: number
@@ -119,12 +176,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_usage: {
+        Row: {
+          free_memes_remaining: number
+          total_memes_generated: number
+          user_id: string
+        }
+        Insert: {
+          free_memes_remaining?: number
+          total_memes_generated?: number
+          user_id: string
+        }
+        Update: {
+          free_memes_remaining?: number
+          total_memes_generated?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_counter: {
+        Args: {
+          row_id: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

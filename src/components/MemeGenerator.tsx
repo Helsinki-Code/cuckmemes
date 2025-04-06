@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ const MemeGenerator = () => {
   const [generatedMeme, setGeneratedMeme] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [subscriptionInfo, setSubscriptionInfo] = useState<UserSubscriptionInfo | null>(null);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const memeContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -31,6 +33,7 @@ const MemeGenerator = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           navigate('/login');
@@ -40,9 +43,21 @@ const MemeGenerator = () => {
         console.log("User authenticated:", session.user.id);
         setUser(session.user);
         
-        const subInfo = await getUserSubscription(session.user.id);
-        console.log("Subscription info:", subInfo);
-        setSubscriptionInfo(subInfo);
+        try {
+          setIsSubscriptionLoading(true);
+          const subInfo = await getUserSubscription(session.user.id);
+          console.log("Subscription info:", subInfo);
+          setSubscriptionInfo(subInfo);
+        } catch (error) {
+          console.error("Error fetching subscription info:", error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not fetch subscription status. Please try again.",
+          });
+        } finally {
+          setIsSubscriptionLoading(false);
+        }
       } catch (error) {
         console.error("Error checking auth:", error);
         toast({
@@ -51,6 +66,8 @@ const MemeGenerator = () => {
           description: "Please try logging in again",
         });
         navigate('/login');
+      } finally {
+        setLoading(false);
       }
     };
     
@@ -73,16 +90,28 @@ const MemeGenerator = () => {
   };
 
   const canGenerate = () => {
+    if (isSubscriptionLoading) {
+      console.log("Still loading subscription info");
+      return false;
+    }
+    
+    if (!subscriptionInfo) {
+      console.log("No subscription info available");
+      return false;
+    }
+    
     console.log("Checking if user can generate meme:", subscriptionInfo);
-    if (!subscriptionInfo) return false;
+    
     if (subscriptionInfo.hasSubscription) {
       console.log("User has active subscription");
       return true;
     }
+    
     if (subscriptionInfo.hasFreeUsage && subscriptionInfo.freeRemaining > 0) {
       console.log("User has free usage remaining:", subscriptionInfo.freeRemaining);
       return true;
     }
+    
     console.log("User cannot generate meme");
     return false;
   };
@@ -184,25 +213,26 @@ const MemeGenerator = () => {
             const memeDataUrl = canvas.toDataURL('image/png');
             setGeneratedMeme(memeDataUrl);
             
-            if (subscriptionInfo?.hasFreeUsage && !subscriptionInfo?.hasSubscription) {
-              console.log("Checking if should decrement free usage:", subscriptionInfo);
-              if (subscriptionInfo?.hasFreeUsage && !subscriptionInfo?.hasSubscription) {
-                console.log("Decrementing free usage");
-                const decremented = await decrementFreeUsage(user.id);
-                
-                if (decremented) {
-                  console.log("Successfully decremented free usage");
-                  setSubscriptionInfo(prev => {
-                    if (!prev) return prev;
-                    const remaining = prev.freeRemaining - 1;
-                    return {
-                      ...prev,
-                      freeRemaining: remaining,
-                      hasFreeUsage: remaining > 0
-                    };
-                  });
-                }
+            if (!subscriptionInfo?.hasSubscription) {
+              console.log("Decrementing free usage for non-subscriber");
+              const decremented = await decrementFreeUsage(user.id);
+              
+              if (decremented) {
+                console.log("Successfully decremented free usage");
+                setSubscriptionInfo(prev => {
+                  if (!prev) return prev;
+                  const remaining = prev.freeRemaining - 1;
+                  return {
+                    ...prev,
+                    freeRemaining: remaining,
+                    hasFreeUsage: remaining > 0
+                  };
+                });
               }
+            } else {
+              console.log("User has subscription, not decrementing free usage");
+              // Still track usage for subscribers
+              await decrementFreeUsage(user.id);
             }
             
             const imageUrl = memeDataUrl.substring(0, 100) + "...";
@@ -241,6 +271,14 @@ const MemeGenerator = () => {
   };
 
   const renderUsageStats = () => {
+    if (isSubscriptionLoading) {
+      return (
+        <div className="text-sm text-gray-400 mb-4">
+          Loading subscription info...
+        </div>
+      );
+    }
+    
     if (!subscriptionInfo) return null;
     
     if (subscriptionInfo.hasSubscription) {
@@ -337,7 +375,7 @@ const MemeGenerator = () => {
               <div className="flex justify-center pt-4">
                 <Button 
                   onClick={generateMeme} 
-                  disabled={!imageFile || generating || !canGenerate()} 
+                  disabled={!imageFile || generating || isSubscriptionLoading || !canGenerate()} 
                   className="w-full"
                 >
                   {generating ? (
