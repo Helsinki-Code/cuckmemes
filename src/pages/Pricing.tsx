@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { CheckIcon } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
 const Pricing = () => {
@@ -28,27 +28,20 @@ const Pricing = () => {
     setLoading(plan);
     
     try {
-      // In a real implementation, this would call your Supabase Edge Function
-      // that creates a Stripe checkout session
-      const response = await fetch("https://your-supabase-function-url/create-checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.data.session.access_token}`,
-        },
-        body: JSON.stringify({
-          plan,
-        }),
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { plan },
       });
       
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
+      if (error) {
+        throw new Error(error.message);
       }
       
-      // Redirect to Stripe checkout
-      window.location.href = data.url;
+      if (data?.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
     } catch (error: any) {
       console.error("Error subscribing:", error);
       toast({
