@@ -1,12 +1,13 @@
 
 import { createClient } from '@supabase/supabase-js';
+import { UserSubscriptionInfo } from '@/types';
 
-const supabaseUrl = 'https://your-supabase-url.supabase.co';
-const supabaseAnonKey = 'your-supabase-anon-key';
+const supabaseUrl = 'https://fxpdgbvveojnrygkmaug.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4cGRnYnZ2ZW9qbnJ5Z2ttYXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxNDY3ODgsImV4cCI6MjA1ODcyMjc4OH0.vhIwwChuMik6oGWqmEKAoUiItPOd5Hww8wr8sRnoW-I';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function getUserSubscription(userId: string) {
+export async function getUserSubscription(userId: string): Promise<UserSubscriptionInfo> {
   // Check if user has remaining free memes
   const { data: freeUsage } = await supabase
     .from('user_usage')
@@ -59,8 +60,7 @@ export async function saveMeme(userId: string, imageUrl: string, topText: string
         user_id: userId, 
         image_url: imageUrl, 
         top_text: topText, 
-        bottom_text: bottomText,
-        created_at: new Date()
+        bottom_text: bottomText
       }
     ])
     .select();
