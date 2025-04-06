@@ -40,9 +40,9 @@ export function AdminOverview() {
       try {
         setIsLoading(true);
 
-        // Fetch total users
+        // Fetch total users from user_usage instead of auth.users
         const { count: userCount, error: userError } = await supabase
-          .from('auth.users')
+          .from('user_usage')
           .select('*', { count: 'exact', head: true });
 
         if (userError) throw userError;
@@ -62,7 +62,7 @@ export function AdminOverview() {
 
         if (subError) throw subError;
 
-        // Fetch recent users using service role (for demo, we'll use regular client)
+        // Fetch recent users using user_usage table
         const { data: recentUsers, error: recentUserError } = await supabase
           .from('user_usage')
           .select('user_id, free_memes_remaining, total_memes_generated')

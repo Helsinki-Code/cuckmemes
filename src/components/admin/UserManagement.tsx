@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +69,10 @@ export function UserManagement() {
       const combinedData = usageData.map(user => {
         const subscription = subscriptions.find(s => s.user_id === user.user_id);
         return {
-          ...user,
+          id: user.user_id,
+          user_id: user.user_id,
+          free_memes_remaining: user.free_memes_remaining,
+          total_memes_generated: user.total_memes_generated,
           has_subscription: !!subscription,
           subscription_type: subscription ? subscription.plan_type : null
         };
