@@ -1,32 +1,77 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { CheckIcon } from "lucide-react";
+import { Subscription } from "@/types";
 
 const SubscriptionSuccess = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/login');
+      try {
+        setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          navigate('/login');
+          return;
+        }
+        
+        // Fetch the user's subscription details
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+          
+        if (error) {
+          console.error("Error fetching subscription:", error);
+          throw error;
+        }
+        
+        console.log("Subscription data:", data);
+        setSubscription(data);
+        
+        // Show a success toast when the page loads
+        toast({
+          title: "Subscription Activated!",
+          description: "Thank you for subscribing to our service.",
+        });
+      } catch (error) {
+        console.error("Error checking subscription:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not verify your subscription status.",
+        });
+      } finally {
+        setLoading(false);
       }
     };
     
     checkAuth();
-    
-    // Show a success toast when the page loads
-    toast({
-      title: "Subscription Activated!",
-      description: "Thank you for subscribing to our service.",
-    });
   }, [navigate, toast]);
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+  };
 
   return (
     <div className="container max-w-4xl mx-auto py-16 px-4">
@@ -36,8 +81,14 @@ const SubscriptionSuccess = () => {
         </div>
         <h1 className="text-3xl font-bold mb-2 gradient-heading">Subscription Successful!</h1>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          Your subscription has been activated successfully. You now have access to all premium features.
+          Your {subscription?.plan_type || ''} subscription has been activated successfully. 
+          You now have access to all premium features.
         </p>
+        {subscription && (
+          <p className="text-muted-foreground mt-2">
+            Your subscription will renew on {formatDate(subscription.current_period_end)}.
+          </p>
+        )}
       </div>
       
       <Card>

@@ -7,6 +7,7 @@ import { supabase, getUserSubscription } from "@/lib/supabase";
 import { Meme, UserSubscriptionInfo } from "@/types";
 import { Link, useNavigate } from "react-router-dom";
 import { Image, Plus, Zap } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 const Dashboard = () => {
   const [memes, setMemes] = useState<Meme[]>([]);
@@ -38,16 +39,42 @@ const Dashboard = () => {
         // Get subscription info
         const subInfo = await getUserSubscription(session.user.id);
         
+        console.log("Dashboard - Memes loaded:", memesData?.length);
+        console.log("Dashboard - Subscription info:", subInfo);
+        
         setMemes(memesData || []);
         setSubscriptionInfo(subInfo);
       } catch (error) {
         console.error("Error fetching user data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error loading dashboard",
+          description: "Could not load your memes and subscription information."
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchUserData();
+    
+    // Set up real-time subscription for updates to the memes table
+    const memesSubscription = supabase
+      .channel('memes-changes')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'memes' 
+      }, (payload) => {
+        console.log('New meme inserted:', payload);
+        // Refresh memes when a new one is created
+        fetchUserData();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(memesSubscription);
+    };
   }, [navigate]);
 
   const formatDate = (dateString: string) => {
@@ -57,6 +84,10 @@ const Dashboard = () => {
       day: 'numeric',
       year: 'numeric',
     }).format(date);
+  };
+
+  const handleViewMeme = (meme: Meme) => {
+    navigate('/generator', { state: { selectedMeme: meme } });
   };
 
   return (
@@ -79,13 +110,17 @@ const Dashboard = () => {
                 <div className="flex justify-between">
                   <span>Free memes remaining:</span>
                   <span className="font-medium">
-                    {subscriptionInfo?.freeRemaining || 0}/5
+                    {subscriptionInfo?.hasSubscription 
+                      ? 'Unlimited' 
+                      : `${subscriptionInfo?.freeRemaining || 0}/5`}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Subscription status:</span>
                   <span className={`font-medium ${subscriptionInfo?.hasSubscription ? 'text-green-500' : 'text-yellow-500'}`}>
-                    {subscriptionInfo?.hasSubscription ? 'Active' : 'Not Subscribed'}
+                    {subscriptionInfo?.hasSubscription 
+                      ? `Active (${subscriptionInfo?.subscription?.plan_type || 'Basic'})` 
+                      : 'Not Subscribed'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -190,7 +225,11 @@ const Dashboard = () => {
           ) : memes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {memes.slice(0, 6).map((meme) => (
-                <Card key={meme.id} className="overflow-hidden">
+                <Card 
+                  key={meme.id} 
+                  className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                  onClick={() => handleViewMeme(meme)}
+                >
                   <div className="aspect-video relative overflow-hidden">
                     <img 
                       src={meme.image_url} 
@@ -201,6 +240,10 @@ const Dashboard = () => {
                         (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/3a3a55/FFFFFF?text=Meme+Preview';
                       }}
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                      <p className="text-white text-sm line-clamp-1">{meme.top_text}</p>
+                      <p className="text-white text-sm line-clamp-1">{meme.bottom_text}</p>
+                    </div>
                   </div>
                   <CardContent className="p-4">
                     <p className="text-sm text-muted-foreground">
@@ -247,7 +290,11 @@ const Dashboard = () => {
           ) : memes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {memes.map((meme) => (
-                <Card key={meme.id} className="overflow-hidden">
+                <Card 
+                  key={meme.id} 
+                  className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                  onClick={() => handleViewMeme(meme)}
+                >
                   <div className="aspect-video relative overflow-hidden">
                     <img 
                       src={meme.image_url} 
@@ -258,6 +305,10 @@ const Dashboard = () => {
                         (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/3a3a55/FFFFFF?text=Meme+Preview';
                       }}
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                      <p className="text-white text-sm line-clamp-1">{meme.top_text}</p>
+                      <p className="text-white text-sm line-clamp-1">{meme.bottom_text}</p>
+                    </div>
                   </div>
                   <CardContent className="p-4">
                     <p className="text-sm text-muted-foreground">

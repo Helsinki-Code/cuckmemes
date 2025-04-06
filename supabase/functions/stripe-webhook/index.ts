@@ -141,24 +141,12 @@ serve(async (req) => {
                   .from('user_usage')
                   .insert({
                     user_id: userId,
-                    free_memes_remaining: 999, // Subscribers get unlimited
+                    free_memes_remaining: 5,
                     total_memes_generated: 0
                   });
                   
                 if (usageError) {
                   console.error('Error creating user_usage record:', usageError);
-                }
-              } else {
-                // Update existing user_usage for subscribers
-                const { error: updateError } = await supabaseClient
-                  .from('user_usage')
-                  .update({
-                    free_memes_remaining: 999 // Subscribers get unlimited
-                  })
-                  .eq('user_id', userId);
-                  
-                if (updateError) {
-                  console.error('Error updating user_usage record:', updateError);
                 }
               }
               

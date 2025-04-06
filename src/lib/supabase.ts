@@ -47,7 +47,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     // Only check for free usage if user doesn't have an active subscription
     const { data: freeUsage, error: usageError } = await supabase
       .from('user_usage')
-      .select('free_memes_remaining')
+      .select('free_memes_remaining, total_memes_generated')
       .eq('user_id', userId)
       .maybeSingle();
       
@@ -80,9 +80,10 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
         response.hasFreeUsage = true;
         response.freeRemaining = 5;
       }
-    } else if (freeUsage.free_memes_remaining > 0) {
+    } else {
       response.hasFreeUsage = true;
-      response.freeRemaining = 5; // Always return 5 free memes
+      response.freeRemaining = freeUsage.free_memes_remaining || 5;
+      console.log("Found existing usage record with memes remaining:", response.freeRemaining);
     }
     
     console.log("Final subscription response:", response);
@@ -100,9 +101,9 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   }
 }
 
-export async function decrementFreeUsage(userId: string) {
+export async function decrementFreeUsage(userId: string): Promise<boolean> {
   try {
-    console.log("Decrementing free usage for user:", userId);
+    console.log("Tracking meme generation for user:", userId);
     
     // First check if user has an active subscription
     const { data: subscription } = await supabase
@@ -112,29 +113,7 @@ export async function decrementFreeUsage(userId: string) {
       .eq('status', 'active')
       .maybeSingle();
       
-    // If user has an active subscription, no need to decrement free usage
-    if (subscription) {
-      console.log("User has active subscription, not decrementing free usage");
-      
-      // Update total memes generated
-      const { error: updateError } = await supabase
-        .from('user_usage')
-        .upsert({
-          user_id: userId,
-          free_memes_remaining: 5, // Keep at max
-          total_memes_generated: supabase.rpc('increment_counter', { row_id: userId })
-        }, {
-          onConflict: 'user_id'
-        });
-        
-      if (updateError) {
-        console.error('Error updating meme count:', updateError);
-      }
-      
-      return true;
-    }
-    
-    // If no subscription, proceed with checking/updating free usage
+    // Get current usage data
     const { data: currentUsage, error: fetchError } = await supabase
       .from('user_usage')
       .select('free_memes_remaining, total_memes_generated')
@@ -151,7 +130,7 @@ export async function decrementFreeUsage(userId: string) {
         .from('user_usage')
         .insert({
           user_id: userId,
-          free_memes_remaining: 5, // Always keep at 5
+          free_memes_remaining: subscription ? 5 : 4, // Decrement if no subscription
           total_memes_generated: 1
         });
         
@@ -164,11 +143,16 @@ export async function decrementFreeUsage(userId: string) {
     
     console.log("Current usage:", currentUsage);
     
-    // Only track meme generation, don't decrement free memes
+    // For all users, increment total_memes_generated
+    // Only decrement free_memes_remaining for non-subscribers
+    const newFreeRemaining = subscription 
+      ? currentUsage.free_memes_remaining 
+      : Math.max(0, (currentUsage.free_memes_remaining || 5) - 1);
+    
     const { error: updateError } = await supabase
       .from('user_usage')
       .update({
-        free_memes_remaining: 5, // Always keep at 5
+        free_memes_remaining: newFreeRemaining,
         total_memes_generated: (currentUsage.total_memes_generated || 0) + 1
       })
       .eq('user_id', userId);
@@ -178,7 +162,7 @@ export async function decrementFreeUsage(userId: string) {
       return false;
     }
       
-    console.log("Successfully updated meme usage");
+    console.log("Successfully updated meme usage. New free remaining:", newFreeRemaining);
     return true;
     
   } catch (error) {
