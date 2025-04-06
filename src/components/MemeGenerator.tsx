@@ -30,15 +30,28 @@ const MemeGenerator = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate('/login');
+          return;
+        }
+        
+        console.log("User authenticated:", session.user.id);
+        setUser(session.user);
+        
+        const subInfo = await getUserSubscription(session.user.id);
+        console.log("Subscription info:", subInfo);
+        setSubscriptionInfo(subInfo);
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        toast({
+          variant: "destructive",
+          title: "Authentication error",
+          description: "Please try logging in again",
+        });
         navigate('/login');
-        return;
       }
-      setUser(session.user);
-      
-      const subInfo = await getUserSubscription(session.user.id);
-      setSubscriptionInfo(subInfo);
     };
     
     checkAuth();
@@ -60,8 +73,18 @@ const MemeGenerator = () => {
   };
 
   const canGenerate = () => {
+    console.log("Checking if user can generate meme:", subscriptionInfo);
     if (!subscriptionInfo) return false;
-    return subscriptionInfo.hasSubscription || subscriptionInfo.hasFreeUsage;
+    if (subscriptionInfo.hasSubscription) {
+      console.log("User has active subscription");
+      return true;
+    }
+    if (subscriptionInfo.hasFreeUsage && subscriptionInfo.freeRemaining > 0) {
+      console.log("User has free usage remaining:", subscriptionInfo.freeRemaining);
+      return true;
+    }
+    console.log("User cannot generate meme");
+    return false;
   };
 
   const generateMeme = async () => {
@@ -75,6 +98,7 @@ const MemeGenerator = () => {
       return;
     }
     
+    console.log("Starting meme generation, checking if user can generate");
     if (!canGenerate()) {
       toast({
         variant: "destructive",
@@ -113,6 +137,8 @@ const MemeGenerator = () => {
           
           setTopText(generatedTopText);
           setBottomText(generatedBottomText);
+          
+          console.log("AI generated text:", generatedTopText, generatedBottomText);
         } catch (error: any) {
           console.error("Error generating text with Gemini:", error);
           toast({
@@ -158,16 +184,28 @@ const MemeGenerator = () => {
             const memeDataUrl = canvas.toDataURL('image/png');
             setGeneratedMeme(memeDataUrl);
             
-            if (subscriptionInfo?.hasFreeUsage) {
-              await decrementFreeUsage(user.id);
-              setSubscriptionInfo({
-                ...subscriptionInfo,
-                freeRemaining: subscriptionInfo.freeRemaining - 1,
-                hasFreeUsage: subscriptionInfo.freeRemaining - 1 > 0
-              });
+            if (subscriptionInfo?.hasFreeUsage && !subscriptionInfo?.hasSubscription) {
+              console.log("Checking if should decrement free usage:", subscriptionInfo);
+              if (subscriptionInfo?.hasFreeUsage && !subscriptionInfo?.hasSubscription) {
+                console.log("Decrementing free usage");
+                const decremented = await decrementFreeUsage(user.id);
+                
+                if (decremented) {
+                  console.log("Successfully decremented free usage");
+                  setSubscriptionInfo(prev => {
+                    if (!prev) return prev;
+                    const remaining = prev.freeRemaining - 1;
+                    return {
+                      ...prev,
+                      freeRemaining: remaining,
+                      hasFreeUsage: remaining > 0
+                    };
+                  });
+                }
+              }
             }
             
-            const imageUrl = "https://example.com/meme.png";
+            const imageUrl = memeDataUrl.substring(0, 100) + "...";
             await saveMeme(user.id, imageUrl, generatedTopText, generatedBottomText);
             
             toast({

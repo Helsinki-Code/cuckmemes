@@ -8,6 +8,7 @@ export interface GeminiResponse {
 
 export async function generateMemeText(imageBase64: string): Promise<GeminiResponse> {
   try {
+    console.log("Calling Gemini API through edge function");
     // Call the Supabase Edge Function
     const { data, error } = await supabase.functions.invoke("gemini-generate", {
       body: { imageBase64 },
@@ -18,6 +19,7 @@ export async function generateMemeText(imageBase64: string): Promise<GeminiRespo
       throw error;
     }
 
+    console.log("Gemini API response:", data);
     return data as GeminiResponse;
   } catch (error) {
     console.error("Error generating meme text:", error);
