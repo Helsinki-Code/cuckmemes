@@ -1,18 +1,16 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import { User } from "@supabase/supabase-js";
 import { supabase, getUserSubscription, decrementFreeUsage, saveMeme } from "@/lib/supabase";
 import { UserSubscriptionInfo } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { Download, Upload, RefreshCw } from "lucide-react";
+import { generateMemeText } from "@/lib/gemini";
 
 const MemeGenerator = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -30,7 +28,6 @@ const MemeGenerator = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Check authentication and subscription status
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -40,7 +37,6 @@ const MemeGenerator = () => {
       }
       setUser(session.user);
       
-      // Get subscription info
       const subInfo = await getUserSubscription(session.user.id);
       setSubscriptionInfo(subInfo);
     };
@@ -53,14 +49,12 @@ const MemeGenerator = () => {
       const file = e.target.files[0];
       setImageFile(file);
       
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
       
-      // Reset generated meme when new image is uploaded
       setGeneratedMeme(null);
     }
   };
@@ -103,64 +97,69 @@ const MemeGenerator = () => {
     setGenerating(true);
     
     try {
-      // Mock the Gemini API call - in a real implementation this would call the Supabase edge function
-      // that would then use the Gemini API
-      
-      // Simulate AI generating text if none is provided
       let generatedTopText = topText;
       let generatedBottomText = bottomText;
       
-      if (!topText && !bottomText) {
-        // Simulate AI response
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        generatedTopText = "When she says she's just going out with friends";
-        generatedBottomText = "But comes home with another man's scent";
+      if (!topText && !bottomText && imagePreview) {
+        toast({
+          title: "AI is generating text...",
+          description: "This may take a few seconds",
+        });
         
-        setTopText(generatedTopText);
-        setBottomText(generatedBottomText);
+        try {
+          const response = await generateMemeText(imagePreview);
+          generatedTopText = response.topText;
+          generatedBottomText = response.bottomText;
+          
+          setTopText(generatedTopText);
+          setBottomText(generatedBottomText);
+        } catch (error: any) {
+          console.error("Error generating text with Gemini:", error);
+          toast({
+            variant: "destructive",
+            title: "AI text generation failed",
+            description: "Using fallback text instead. Try again later.",
+          });
+          
+          generatedTopText = "When she says she's just going out with friends";
+          generatedBottomText = "But comes home with another man's scent";
+          setTopText(generatedTopText);
+          setBottomText(generatedBottomText);
+        }
       }
       
-      // Create meme with canvas
       const canvas = canvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx && imagePreview) {
           const img = new Image();
           img.onload = async () => {
-            // Set canvas dimensions to match image
             canvas.width = img.width;
             canvas.height = img.height;
             
-            // Draw image on canvas
             ctx.drawImage(img, 0, 0);
             
-            // Add text
             ctx.fillStyle = 'white';
             ctx.strokeStyle = 'black';
             ctx.lineWidth = Math.max(1, fontSize / 15);
             ctx.font = `bold ${fontSize}px Impact`;
             ctx.textAlign = 'center';
             
-            // Draw top text
             if (generatedTopText) {
               ctx.fillText(generatedTopText, canvas.width / 2, fontSize + 10);
               ctx.strokeText(generatedTopText, canvas.width / 2, fontSize + 10);
             }
             
-            // Draw bottom text
             if (generatedBottomText) {
               ctx.fillText(generatedBottomText, canvas.width / 2, canvas.height - 20);
               ctx.strokeText(generatedBottomText, canvas.width / 2, canvas.height - 20);
             }
             
-            // Convert canvas to data URL
             const memeDataUrl = canvas.toDataURL('image/png');
             setGeneratedMeme(memeDataUrl);
             
-            // Decrement free usage if applicable
             if (subscriptionInfo?.hasFreeUsage) {
               await decrementFreeUsage(user.id);
-              // Update local subscription info
               setSubscriptionInfo({
                 ...subscriptionInfo,
                 freeRemaining: subscriptionInfo.freeRemaining - 1,
@@ -168,10 +167,7 @@ const MemeGenerator = () => {
               });
             }
             
-            // Save meme to database
-            // In a real implementation, you would upload the image to Supabase storage
-            // and then save the URL to the database
-            const imageUrl = "https://example.com/meme.png"; // Placeholder
+            const imageUrl = "https://example.com/meme.png";
             await saveMeme(user.id, imageUrl, generatedTopText, generatedBottomText);
             
             toast({
@@ -206,7 +202,6 @@ const MemeGenerator = () => {
     document.body.removeChild(link);
   };
 
-  // Display usage stats and upgrade prompt
   const renderUsageStats = () => {
     if (!subscriptionInfo) return null;
     
@@ -275,7 +270,7 @@ const MemeGenerator = () => {
               <div className="space-y-2">
                 <label className="block text-sm font-medium">Top Text</label>
                 <Input
-                  placeholder="Enter top text"
+                  placeholder="Enter top text (or leave empty for AI generation)"
                   value={topText}
                   onChange={(e) => setTopText(e.target.value)}
                 />
@@ -284,7 +279,7 @@ const MemeGenerator = () => {
               <div className="space-y-2">
                 <label className="block text-sm font-medium">Bottom Text</label>
                 <Input
-                  placeholder="Enter bottom text"
+                  placeholder="Enter bottom text (or leave empty for AI generation)"
                   value={bottomText}
                   onChange={(e) => setBottomText(e.target.value)}
                 />
@@ -319,7 +314,7 @@ const MemeGenerator = () => {
               </div>
               
               <p className="text-xs text-center text-muted-foreground pt-2">
-                {!topText && !bottomText ? "Leave text empty to let AI generate it for you!" : ""}
+                {!topText && !bottomText ? "Leave text empty to let AI generate it for you using Google's Gemini!" : ""}
               </p>
             </CardContent>
           </Card>
@@ -377,7 +372,6 @@ const MemeGenerator = () => {
         </TabsContent>
       </Tabs>
       
-      {/* Hidden canvas for generating memes */}
       <canvas ref={canvasRef} className="hidden"></canvas>
     </div>
   );

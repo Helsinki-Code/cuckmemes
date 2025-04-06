@@ -4,3 +4,5 @@ project_id = "fxpdgbvveojnrygkmaug"
 [functions.stripe-webhook]
 verify_jwt = false
 
+[functions.gemini-generate]
+verify_jwt = false
