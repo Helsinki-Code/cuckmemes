@@ -60,7 +60,9 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     // If no usage record exists, create one with default free memes
     if (!freeUsage) {
       console.log("No usage record found, creating one with 5 free memes");
-      const { error: createError } = await supabase
+      
+      // Insert a new user_usage record with default 5 free memes
+      const { error: insertError } = await supabase
         .from('user_usage')
         .insert({
           user_id: userId,
@@ -68,8 +70,12 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
           total_memes_generated: 0
         });
         
-      if (createError) {
-        console.error('Error creating user usage record:', createError);
+      if (insertError) {
+        console.error('Error creating user usage record:', insertError);
+        
+        // Even if insertion fails, set default values to allow initial usage
+        response.hasFreeUsage = true;
+        response.freeRemaining = 5;
       } else {
         response.hasFreeUsage = true;
         response.freeRemaining = 5;
@@ -85,10 +91,10 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   } catch (error) {
     console.error('Error in getUserSubscription:', error);
     
-    // Return conservative defaults on error
+    // Return conservative defaults on error, but allow first-time users to have free memes
     return {
-      hasFreeUsage: false,
-      freeRemaining: 0,
+      hasFreeUsage: true,
+      freeRemaining: 5,
       hasSubscription: false
     };
   }
@@ -137,7 +143,6 @@ export async function decrementFreeUsage(userId: string) {
       
     if (fetchError) {
       console.error('Error fetching current usage:', fetchError);
-      return false;
     }
     
     if (!currentUsage) {

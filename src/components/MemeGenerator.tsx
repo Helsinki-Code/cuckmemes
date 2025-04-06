@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +54,12 @@ const MemeGenerator = () => {
             title: "Error",
             description: "Could not fetch subscription status. Please try again.",
           });
+          
+          setSubscriptionInfo({
+            hasFreeUsage: true,
+            freeRemaining: 5,
+            hasSubscription: false
+          });
         } finally {
           setIsSubscriptionLoading(false);
         }
@@ -97,7 +102,7 @@ const MemeGenerator = () => {
     
     if (!subscriptionInfo) {
       console.log("No subscription info available");
-      return false;
+      return true;
     }
     
     console.log("Checking if user can generate meme:", subscriptionInfo);
@@ -231,7 +236,6 @@ const MemeGenerator = () => {
               }
             } else {
               console.log("User has subscription, not decrementing free usage");
-              // Still track usage for subscribers
               await decrementFreeUsage(user.id);
             }
             
@@ -279,7 +283,13 @@ const MemeGenerator = () => {
       );
     }
     
-    if (!subscriptionInfo) return null;
+    if (!subscriptionInfo) {
+      return (
+        <div className="text-sm text-amber-400 mb-4">
+          You have 5 free memes remaining
+        </div>
+      );
+    }
     
     if (subscriptionInfo.hasSubscription) {
       return (

@@ -128,7 +128,7 @@ serve(async (req) => {
                 }
               }
               
-              // Also initialize or update user_usage if needed
+              // Always create or update user_usage for subscribers
               const { data: userUsage } = await supabaseClient
                 .from('user_usage')
                 .select('*')
@@ -136,18 +136,29 @@ serve(async (req) => {
                 .maybeSingle();
                 
               if (!userUsage) {
-                console.log("Creating user_usage record with free memes");
+                console.log("Creating user_usage record for subscriber");
                 const { error: usageError } = await supabaseClient
                   .from('user_usage')
                   .insert({
                     user_id: userId,
-                    free_memes_remaining: 5,
+                    free_memes_remaining: 999, // Subscribers get unlimited
                     total_memes_generated: 0
                   });
                   
                 if (usageError) {
                   console.error('Error creating user_usage record:', usageError);
-                  throw usageError;
+                }
+              } else {
+                // Update existing user_usage for subscribers
+                const { error: updateError } = await supabaseClient
+                  .from('user_usage')
+                  .update({
+                    free_memes_remaining: 999 // Subscribers get unlimited
+                  })
+                  .eq('user_id', userId);
+                  
+                if (updateError) {
+                  console.error('Error updating user_usage record:', updateError);
                 }
               }
               
