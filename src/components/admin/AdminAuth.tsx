@@ -30,33 +30,28 @@ export function AdminAuth() {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (error) {
-        throw error;
-      }
-      
-      if (data.user?.email !== "vikky090896@gmail.com") {
-        await supabase.auth.signOut();
+      // Check if the provided credentials match the admin credentials
+      if (email === "vikky090896@gmail.com" && password === "Vik@9550038093") {
+        // Simulate a successful login
+        toast({
+          title: "Welcome back, Admin",
+          description: "Login successful",
+        });
+        
+        // Store admin session in localStorage
+        localStorage.setItem("adminAuthenticated", "true");
+        
+        // Refresh the page to trigger the auth check
+        window.location.href = "/ck-boss";
+        return;
+      } else {
         toast({
           variant: "destructive",
           title: "Access Denied",
-          description: "You don't have admin privileges",
+          description: "Incorrect email or password",
         });
-        navigate("/");
         return;
       }
-      
-      toast({
-        title: "Welcome back, Admin",
-        description: "Login successful",
-      });
-      
-      // Refresh the page to trigger the auth check
-      window.location.reload();
       
     } catch (error: any) {
       console.error("Login error:", error);

@@ -96,7 +96,8 @@ const RecentMemes: React.FC<RecentMemesProps> = ({ userId, onSelectMeme, selecte
                   alt="Generated meme"
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://placehold.co/300x300/3a3a55/FFFFFF?text=Meme';
+                    // Use a different placeholder that matches the design
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x300/1f2937/FFFFFF?text=Meme';
                   }}
                 />
                 {selectedMemeId === meme.id && (

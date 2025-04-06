@@ -90,6 +90,36 @@ const Dashboard = () => {
     navigate('/generator', { state: { selectedMeme: meme } });
   };
 
+  // Custom function to render meme card
+  const renderMemeCard = (meme: Meme) => (
+    <Card 
+      key={meme.id} 
+      className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+      onClick={() => handleViewMeme(meme)}
+    >
+      <div className="aspect-video relative overflow-hidden">
+        <img 
+          src={meme.image_url} 
+          alt="Meme" 
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // Use a different placeholder that matches the design
+            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/600x400/1f2937/FFFFFF?text=Meme';
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+          <p className="text-white text-sm line-clamp-1">{meme.top_text}</p>
+          <p className="text-white text-sm line-clamp-1">{meme.bottom_text}</p>
+        </div>
+      </div>
+      <CardContent className="p-4">
+        <p className="text-sm text-muted-foreground">
+          Created {formatDate(meme.created_at)}
+        </p>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="container py-8 px-4">
       <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
@@ -224,34 +254,7 @@ const Dashboard = () => {
             </div>
           ) : memes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {memes.slice(0, 6).map((meme) => (
-                <Card 
-                  key={meme.id} 
-                  className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                  onClick={() => handleViewMeme(meme)}
-                >
-                  <div className="aspect-video relative overflow-hidden">
-                    <img 
-                      src={meme.image_url} 
-                      alt="Meme" 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback for demo purposes
-                        (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/3a3a55/FFFFFF?text=Meme+Preview';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                      <p className="text-white text-sm line-clamp-1">{meme.top_text}</p>
-                      <p className="text-white text-sm line-clamp-1">{meme.bottom_text}</p>
-                    </div>
-                  </div>
-                  <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground">
-                      Created {formatDate(meme.created_at)}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+              {memes.slice(0, 6).map(renderMemeCard)}
             </div>
           ) : (
             <div className="text-center py-12">
@@ -289,34 +292,7 @@ const Dashboard = () => {
             </div>
           ) : memes.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {memes.map((meme) => (
-                <Card 
-                  key={meme.id} 
-                  className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                  onClick={() => handleViewMeme(meme)}
-                >
-                  <div className="aspect-video relative overflow-hidden">
-                    <img 
-                      src={meme.image_url} 
-                      alt="Meme" 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback for demo purposes
-                        (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/3a3a55/FFFFFF?text=Meme+Preview';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                      <p className="text-white text-sm line-clamp-1">{meme.top_text}</p>
-                      <p className="text-white text-sm line-clamp-1">{meme.bottom_text}</p>
-                    </div>
-                  </div>
-                  <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground">
-                      Created {formatDate(meme.created_at)}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+              {memes.map(renderMemeCard)}
             </div>
           ) : (
             <div className="text-center py-12">

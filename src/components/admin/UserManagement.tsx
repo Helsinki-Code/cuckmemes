@@ -70,7 +70,7 @@ export function UserManagement() {
       const combinedData = usageData.map(user => {
         const subscription = subscriptions.find(s => s.user_id === user.user_id);
         return {
-          id: user.user_id,
+          id: user.user_id, // Set id to be the same as user_id 
           user_id: user.user_id,
           free_memes_remaining: user.free_memes_remaining,
           total_memes_generated: user.total_memes_generated,

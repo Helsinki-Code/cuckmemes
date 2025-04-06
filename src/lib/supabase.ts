@@ -103,7 +103,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 
 export async function decrementFreeUsage(userId: string): Promise<boolean> {
   try {
-    console.log("Tracking meme generation for user:", userId);
+    console.log("Decrementing free usage for user:", userId);
     
     // First check if user has an active subscription
     const { data: subscription } = await supabase
@@ -122,6 +122,7 @@ export async function decrementFreeUsage(userId: string): Promise<boolean> {
       
     if (fetchError) {
       console.error('Error fetching current usage:', fetchError);
+      return false;
     }
     
     if (!currentUsage) {
@@ -141,19 +142,24 @@ export async function decrementFreeUsage(userId: string): Promise<boolean> {
       return true;
     }
     
-    console.log("Current usage:", currentUsage);
+    console.log("Current usage before decrement:", currentUsage);
     
     // For all users, increment total_memes_generated
     // Only decrement free_memes_remaining for non-subscribers
     const newFreeRemaining = subscription 
-      ? currentUsage.free_memes_remaining 
+      ? currentUsage.free_memes_remaining // Don't decrement for subscribers
       : Math.max(0, (currentUsage.free_memes_remaining || 5) - 1);
+    
+    const newTotalGenerated = (currentUsage.total_memes_generated || 0) + 1;
+    
+    console.log("New free remaining will be:", newFreeRemaining);
+    console.log("New total generated will be:", newTotalGenerated);
     
     const { error: updateError } = await supabase
       .from('user_usage')
       .update({
         free_memes_remaining: newFreeRemaining,
-        total_memes_generated: (currentUsage.total_memes_generated || 0) + 1
+        total_memes_generated: newTotalGenerated
       })
       .eq('user_id', userId);
       
